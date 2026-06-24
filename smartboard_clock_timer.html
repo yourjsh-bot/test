@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>전자칠판용 시계 & 타이머</title>
+    <style>
+        /* 노션 테마 및 기본 CSS 변수 (라이트 모드) */
+        :root {
+            --bg-color: #ffffff;
+            --text-color: #37352f;
+            --sub-text-color: #787774;
+            --border-color: #e9e9e7;
+            --btn-bg: #f1f1ef;
+            --btn-hover: #e1e1e1;
+            --primary-color: #2eaadc;
+            --primary-hover: #0081b2;
+            --danger-color: #eb5757;
+            --danger-hover: #c44040;
+            --success-color: #0f7b6c;
+            --success-hover: #09594e;
+        }
+
+        /* 다크 모드 감지 및 변수 덮어쓰기 */
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg-color: #191919;
+                --text-color: #ffffff;
+                --sub-text-color: #9b9a97;
+                --border-color: #373737;
+                --btn-bg: #2f2f2f;
+                --btn-hover: #3f3f3f;
+                --primary-color: #2eaadc;
+                --danger-color: #ff7369;
+                --success-color: #0f7b6c;
+            }
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden; /* 스크롤바 제거 */
+            display: flex;
+            user-select: none; /* 터치/드래그 시 텍스트 선택 방지 */
+        }
+
+        /* 레이아웃 반반 분할 */
+        .panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 2vw;
+        }
+
+        .clock-panel {
+            border-right: 2px dashed var(--border-color);
+        }
+
+        /* 시계 영역 디자인 */
+        .date-display {
+            font-size: clamp(1.5rem, 3vw, 4rem);
+            color: var(--sub-text-color);
+            margin-bottom: 1vh;
+            font-weight: 500;
+        }
+
+        .time-display {
+            font-size: clamp(4rem, 10vw, 15rem);
+            font-weight: 800;
+            font-variant-numeric: tabular-nums;
+            line-height: 1.1;
+            display: flex;
+            align-items: baseline;
+            gap: 1vw;
+        }
+
+        .ampm-display {
+            font-size: clamp(1.5rem, 3vw, 4rem);
+            font-weight: 600;
+            color: var(--sub-text-color);
+        }
+
+        /* 타이머 영역 디자인 */
+        .timer-display {
+            font-size: clamp(5rem, 14vw, 18rem);
+            font-weight: 800;
+            font-variant-numeric: tabular-nums;
+            line-height: 1;
+            margin-bottom: 3vh;
+            transition: color 0.3s ease;
+        }
+
+        /* 10초 이하 경고 애니메이션 */
+        .timer-display.warning {
+            color: var(--danger-color);
+            animation: pulse-red 1s infinite;
+        }
+
+        @keyframes pulse-red {
+            0% { opacity: 1; }
+            50% { opacity: 0.3; }
+            100% { opacity: 1; }
+        }
+
+        /* 컨트롤 버튼 디자인 */
+        .controls {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2vh;
+            width: 100%;
+            max-width: 800px;
+        }
+
+        .time-adjust-row, .action-row {
+            display: flex;
+            gap: 1vw;
+            justify-content: center;
+            flex-wrap: wrap;
+            width: 100%;
+        }
+
+        button {
+            background-color: var(--btn-bg);
+            color: var(--text-color);
+            border: none;
+            border-radius: 12px;
+            padding: 1.5vh 2vw;
+            font-size: clamp(1rem, 2vw, 2.5rem);
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        button:hover {
+            background-color: var(--btn-hover);
+        }
+
+        button:active {
+            transform: scale(0.97);
+        }
+
+        /* 특정 색상 버튼 */
+        .btn-start {
+            background-color: var(--success-color);
+            color: white;
+            flex-grow: 1;
+            max-width: 300px;
+        }
+        .btn-start:hover { background-color: var(--success-hover); }
+
+        .btn-pause {
+            background-color: var(--danger-color);
+            color: white;
+            flex-grow: 1;
+            max-width: 300px;
+        }
+        .btn-pause:hover { background-color: var(--danger-hover); }
+
+        .btn-reset {
+            background-color: transparent;
+            border: 2px solid var(--border-color);
+            color: var(--sub-text-color);
+        }
+        .btn-reset:hover { background-color: var(--border-color); color: var(--text-color); }
+
+        /* 모바일 세로 모드 등 좁은 화면 대응 */
+        @media (max-aspect-ratio: 1/1) {
+            body {
+                flex-direction: column;
+            }
+            .clock-panel {
+                border-right: none;
+                border-bottom: 2px dashed var(--border-color);
+            }
+            .timer-display { margin-bottom: 2vh; }
+            button { padding: 2vh 4vw; font-size: clamp(1.2rem, 4vw, 2.5rem); }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 왼쪽: 시계 패널 -->
+    <div class="panel clock-panel">
+        <div class="date-display" id="date">로딩중...</div>
+        <div class="time-display">
+            <span class="ampm-display" id="ampm">AM</span>
+            <span id="time">00:00:00</span>
+        </div>
+    </div>
+
+    <!-- 오른쪽: 타이머 패널 -->
+    <div class="panel timer-panel">
+        <div class="timer-display" id="timer">00:00</div>
+        
+        <div class="controls">
+            <!-- 시간 조절 버튼 -->
+            <div class="time-adjust-row">
+                <button onclick="adjustTime(60)">+1분</button>
+                <button onclick="adjustTime(300)">+5분</button>
+                <button onclick="adjustTime(10)">+10초</button>
+                <button onclick="adjustTime(-10)">-10초</button>
+            </div>
+            
+            <!-- 실행/초기화 버튼 -->
+            <div class="action-row">
+                <button class="btn-reset" onclick="resetTimer()">초기화</button>
+                <button id="startPauseBtn" class="btn-start" onclick="toggleTimer()">시작</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /* =========================================
+           1. 실시간 시계 로직
+        ========================================= */
+        const dateEl = document.getElementById('date');
+        const timeEl = document.getElementById('time');
+        const ampmEl = document.getElementById('ampm');
+
+        function updateClock() {
+            const now = new Date();
+            
+            // 날짜 및 요일 포맷팅 (예: 2024년 5월 20일 월요일)
+            const optionsDate = { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' };
+            dateEl.textContent = now.toLocaleDateString('ko-KR', optionsDate);
+
+            // 시간 포맷팅 (12시간제)
+            let hours = now.getHours();
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            const seconds = String(now.getSeconds()).padStart(2, '0');
+            const ampm = hours >= 12 ? '오후' : '오전';
+            
+            hours = hours % 12;
+            hours = hours ? hours : 12; // 0시는 12시로 표시
+            
+            ampmEl.textContent = ampm;
+            timeEl.textContent = `${String(hours).padStart(2, '0')}:${minutes}:${seconds}`;
+        }
+        setInterval(updateClock, 1000);
+        updateClock(); // 초기 실행
+
+
+        /* =========================================
+           2. 오디오 합성 로직 (학교 종소리 생성)
+           - 외부 파일 종속성을 없애기 위해 Web Audio API 사용
+        ========================================= */
+        let audioCtx;
+
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+
+        // 웨스트민스터 종소리(학교 종소리) 합성
+        function playSchoolBell() {
+            initAudio();
+            
+            // 미 파# 솔 레 / 솔 파# 미 솔
+            const notes1 = [659.25, 523.25, 587.33, 392.00]; // E5, C5, D5, G4
+            const notes2 = [523.25, 587.33, 659.25, 523.25]; // C5, D5, E5, C5
+            
+            let startTime = audioCtx.currentTime;
+
+            function playTone(freq, time) {
+                const osc = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+                
+                osc.type = 'sine'; // 맑은 종소리 느낌을 위해 sine 파형 사용
+                osc.frequency.value = freq;
+                
+                // 종소리의 어택과 디케이(여음) 구현
+                gainNode.gain.setValueAtTime(0, time);
+                gainNode.gain.linearRampToValueAtTime(1, time + 0.05); // 부드럽게 시작
+                gainNode.gain.exponentialRampToValueAtTime(0.001, time + 1.5); // 천천히 사라짐
+                
+                osc.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+                
+                osc.start(time);
+                osc.stop(time + 1.5);
+            }
+
+            // 첫 번째 소절
+            notes1.forEach((freq, index) => {
+                playTone(freq, startTime + index * 0.9);
+            });
+
+            // 두 번째 소절 (약간의 공백 후)
+            let secondStartTime = startTime + (notes1.length * 0.9) + 0.5;
+            notes2.forEach((freq, index) => {
+                playTone(freq, secondStartTime + index * 0.9);
+            });
+        }
+
+
+        /* =========================================
+           3. 타이머 로직
+        ========================================= */
+        const timerEl = document.getElementById('timer');
+        const startPauseBtn = document.getElementById('startPauseBtn');
+        
+        let timeLeft = 0; // 남은 시간 (초)
+        let timerInterval = null;
+        let isRunning = false;
+
+        // 시간 포맷 (MM:SS) DOM 업데이트
+        function updateTimerDisplay() {
+            const m = Math.floor(timeLeft / 60);
+            const s = timeLeft % 60;
+            timerEl.textContent = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+
+            // 10초 이하 경고 애니메이션 (0초일때는 제외, 실행중일때만)
+            if (timeLeft <= 10 && timeLeft > 0 && isRunning) {
+                timerEl.classList.add('warning');
+            } else {
+                timerEl.classList.remove('warning');
+            }
+        }
+
+        // 시간 추가/감소 (버튼용)
+        function adjustTime(seconds) {
+            initAudio(); // 사용자 인터랙션 발생 시 오디오 권한 확보
+            timeLeft += seconds;
+            if (timeLeft < 0) timeLeft = 0;
+            if (timeLeft > 5999) timeLeft = 5999; // 최대 약 99분 제한
+            updateTimerDisplay();
+        }
+
+        // 시작/일시정지 토글
+        function toggleTimer() {
+            initAudio(); // 사용자 인터랙션 발생 시 오디오 권한 확보
+            
+            if (isRunning) {
+                // 일시정지
+                clearInterval(timerInterval);
+                isRunning = false;
+                startPauseBtn.textContent = '계속';
+                startPauseBtn.className = 'btn-start';
+                timerEl.classList.remove('warning'); // 일시정지시 빨간 깜빡임 정지
+            } else {
+                // 시작
+                if (timeLeft <= 0) return; // 0초면 시작 안함
+                isRunning = true;
+                startPauseBtn.textContent = '일시정지';
+                startPauseBtn.className = 'btn-pause';
+                
+                timerInterval = setInterval(() => {
+                    timeLeft--;
+                    updateTimerDisplay();
+                    
+                    if (timeLeft <= 0) {
+                        // 타이머 종료
+                        clearInterval(timerInterval);
+                        isRunning = false;
+                        timeLeft = 0;
+                        updateTimerDisplay();
+                        
+                        // UI 초기화 및 종소리 재생
+                        startPauseBtn.textContent = '시작';
+                        startPauseBtn.className = 'btn-start';
+                        timerEl.classList.remove('warning');
+                        playSchoolBell();
+                    }
+                }, 1000);
+            }
+            updateTimerDisplay(); // 상태에 따른 깜빡임 즉시 반영
+        }
+
+        // 타이머 완전 초기화
+        function resetTimer() {
+            initAudio();
+            clearInterval(timerInterval);
+            isRunning = false;
+            timeLeft = 0;
+            updateTimerDisplay();
+            startPauseBtn.textContent = '시작';
+            startPauseBtn.className = 'btn-start';
+            timerEl.classList.remove('warning');
+        }
+
+        // 최초 로드 시 타이머 디스플레이 초기화
+        updateTimerDisplay();
+    </script>
+</body>
+</html>
